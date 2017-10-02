@@ -14,3 +14,5 @@ The result is "rough" DITA. You should improve it manually to get proper topic-b
 All headers become topics. By default all topics are concepts.
 
 To make a header into a task topic, add \[t\] to the header title (for example: *Writing a letter \[t\]*). To make a header into a reference topic, add \[r\] to the header title (for example: *List of letters \[r\]*).
+
+All text before the first header is dropped - so if you want to convert a small bit of text, put a header before it. (This conveniently excludes the title page of larger documents)
