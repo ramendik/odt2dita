@@ -26,14 +26,14 @@
 
 # Its aim is to minimize the need for manual actions pre- or post conversion
 # With any questions or suggestions regarding this script please contact:
-# ramendim@ie.ibm.com
+# mr@ramendik.ru
 
 # NOTES ON COMMENT TERMINOLOGY
 # "cell/item" is a table cell, a list item, or anything similar - where a paragraph content is
 #  used but not the <p> tag itself, unless there is more than one paragraph
 
-# VERSION: 0.41 OASIS 1
-# October 10, 2016
+# VERSION: 0.42 OASIS
+# October 4, 2017
 
 # TO DO LIST
 # Support continuing an ordered list after an embedded list (apparently the text:continue-list attribute in text:list)
@@ -127,9 +127,12 @@
 #                    Also enabled step processing in tasks by default
 # 0.41 2014/12/09 Aggressive formula detection mode
 # 0.41 OASIS 1 2016/10/10 OASIS branch
+# 0.42 OASIS 2017/10/04 open source, command line interface, removed skipping boilerplate as it is confusing on small documents, added "notitle"
 
 import xml.dom
 import xml.dom.minidom
+import sys
+import os
 import os.path
 import zipfile
 from Tkinter import *
@@ -139,6 +142,7 @@ import tkFont
 import tkFileDialog
 import codecs
 import copy
+import argparse
 
 
 
@@ -156,7 +160,7 @@ OutputDirectory="NOT SELECTED"
 
 # Skip the first amount of output sections
 # Useful for skipping boilerplate
-SkipOutputSections=1
+SkipOutputSections=0
 
 # Tricky processing options
 Process_AntiquaAsBold=True
@@ -2372,9 +2376,12 @@ def PostprocessBreakupIntoTopics():
                 # Process the title node - get doc title
                 TitleNode=node.getElementsByTagName("title").item(0)
                 doctitle=GetTextAsString(TitleNode).strip()
+
                 
                 # If this is an empty topic - blank title and next sibling is a <temp:topic> - move ID to next, and skip it
+		# if the title is empty but the topic is not, change title to "notitle"
                 if doctitle=="":
+                    doctitle="notitle"
                     if node.nextSibling<>None:
                         if node.nextSibling.nodeType==xml.dom.Node.ELEMENT_NODE:
                             if node.nextSibling.tagName=="temp:topic":
@@ -2407,9 +2414,13 @@ def PostprocessBreakupIntoTopics():
                     
                     
                 # changed in 0.36 on user request
-                # determine document (topic) ID - based the title
+                # determine document (topic) ID - based on the title
                 # [r] and [t] are removed by this time, so we get the title text anew
                 CurrentDocID=GetTextAsString(TitleNode).strip().lower()
+
+                # 0.42 if the ID is empty,s et it to "notitle"
+                if CurrentDocID=="":
+                    CurrentDocID="notitle"
 
                 # replace non-alphanumeric characters with "_"
                 for n in range(0,len(CurrentDocID)):
@@ -2458,6 +2469,8 @@ def PostprocessBreakupIntoTopics():
                     n=n+1
 
                 AllIDs.append(CurrentDocID)
+                #TEMP
+                #print "Topic ID: "+CurrentDocID
 
 #                if doctypestr=="reference":
 #                    doctype=impl.createDocumentType("reference", "-//IBM//DTD DITA IBM Reference//EN", "ibm-reference.dtd")
@@ -2909,6 +2922,11 @@ def ConvertODTToDITA():
         PostprocessNotes(InitialOutputDOM)
         PostprocessNotesFromParagraphs(InitialOutputDOM)
 
+        # TEMP2
+        #outfile=open("dumpdump2.dita","w")
+        #xmlstr=InitialOutputDOM.toxml("UTF-8")
+        #outfile.write(xmlstr)
+        #outfile.close()
 
 
 
@@ -3335,11 +3353,73 @@ class Application(Frame):
         self.createWidgets()
 
 
-root = Tk()
-app = Application(master=root)
-app.mainloop()
-try:
-    root.destroy()
-except TclError: pass  # I don't know why TclError is thrown, consider this a workaround for a prototype
+if len(sys.argv) == 1:
+	# GUI
+	root = Tk()
+	app = Application(master=root)
+	app.mainloop()
+	try:
+    		root.destroy()
+	except Exception as e:
+		print e 
+		print "GUI fails, please use the command line. Use the -h option to view command line options"
+else:
+	#CLI
+        parser = argparse.ArgumentParser("Convert ODT to DITA. (C) IBM, Mikhail Ramendik 2010, 2017")
+        parser.add_argument("infile", help="the name/location of the input file")
+        parser.add_argument("outdir", help="the name/location of the input file")
+        parser.add_argument("-b", help="the tag to use for bold instead of b (optional)")
+        parser.add_argument("-i", help="the tag to use for italic instead of i (optional)")
+        parser.add_argument("-nt", help="do NOT try to process numbered staps in tasks (optional)", action="store_true")
+        parser.add_argument("-np", help="do NOT prefix file names with topic type letter (optional)", action="store_true")
+        parser.add_argument("-a", help="process antigua text as bold (optional)", action="store_true")
+        parser.add_argument("-x", help="remove xref tags for non-working internal links (optional)", action="store_true")
 
+        args = parser.parse_args()
+
+        # assign input and output to globals
+        InputFile=args.infile
+        if not os.path.isfile(InputFile):
+            print "Input file does not exist"
+            sys.exit(2)
+
+        (pth,nme)=os.path.split(InputFile)
+        (NameRoot,ext)=os.path.splitext(nme)
+
+        OutputDirectory=args.outdir
+        if not os.path.isdir(OutputDirectory):
+            print "Output directory does not exist, attempting to create"
+            os.makedirs(OutputDirectory)
+        
+
+
+        # assign optional parameters to globals
+
+        Process_AntiquaAsBold=args.a
+        Process_DeleteBadLinks=args.x
+
+        DoNotPrefix=args.np
+
+        TaskPost=(not args.nt)
+
+        if args.b != None:
+            ReplaceBoldWith=args.b
+        else:
+            ReplaceBoldWith=""
+            
+        if args.i != None:
+            ReplaceItalicWith=args.i
+        else:
+            ReplaceItalicWith=""
+
+        print "Converting, please wait"
+
+        ConvertODTToDITA()
+
+        print "Conversion log:"
+        print DebugText
+
+
+
+	
     
